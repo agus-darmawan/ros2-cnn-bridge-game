@@ -12,6 +12,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
+from dar_msgs.msg import BoundingBox, BoundingBoxArray
 
 
 class ObjectDetectionNode(Node):
@@ -20,7 +21,8 @@ class ObjectDetectionNode(Node):
         logger.remove(0)
         logger.add(sys.stderr, format = "<red>[{level}]</red> <green>{message}</green> ", colorize=True)
         self.cap = cv.VideoCapture(0)
-        self.image_pub = self.create_publisher(Image, 'image', 10)
+        self.image_pub = self.create_publisher(Image, 'camera/image_raw', 10)
+        self.bbx_pub = self.create_publisher(BoundingBoxArray, 'vision/bounding_boxes', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.bridge = CvBridge()
         self.model = load_model('model.h5')
@@ -101,6 +103,44 @@ class ObjectDetectionNode(Node):
                    lineType)
         return copy.deepcopy(img)
 
+    def get_label(self, n):
+        ''' 
+        Parameters
+        ----------
+        n : int
+            number of card
+        Returns
+        -------
+        label : str
+            '''
+        if n < 13:
+            return 'spades'
+        elif n < 26:
+            return 'hearts'
+        elif n < 39:
+            return 'clubs'
+        else:
+            return 'diamonds'
+    
+    def get_number(self, n):
+        ''' 
+        Parameters
+        ----------
+        n : int
+            number of card
+        Returns
+        -------
+        number : str
+            '''
+        if n < 13:
+            return n
+        elif n < 26:
+            return n-13
+        elif n < 39:
+            return n-26
+        else:
+            return n-39
+
     def timer_callback(self):
         ret, frame = self.cap.read()
         if ret:
@@ -110,7 +150,7 @@ class ObjectDetectionNode(Node):
             card = cv.cvtColor(card, cv.COLOR_BGR2GRAY)
             treshold_image = cv.adaptiveThreshold(card,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,71,10)
 
-            len_object, label_image, stats, centroids = cv.connectedComponentsWithStats(treshold_image, 4, cv.CV_32S)
+            len_object,_, stats,_ = cv.connectedComponentsWithStats(treshold_image, 4, cv.CV_32S)
             is_card = []
             for i in range(len_object):
                 hw = stats[i][:2]
@@ -124,6 +164,9 @@ class ObjectDetectionNode(Node):
                 cv.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
                 cv.putText(frame, str(i), (x,y), cv.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2, cv.LINE_AA)
                 break
+            bbx_to_send = BoundingBoxArray()
+            bbx_to_send.header.stamp = self.get_clock().now().to_msg()
+            bbx_to_send.header.frame_id = 'camera'
             for i in range(is_card):
                 x,y,w,h = stats[i][0],stats[i][1],stats[i][2],stats[i][3]
                 card = frame[y:y+h, x:x+w]
@@ -133,17 +176,28 @@ class ObjectDetectionNode(Node):
                 object = []
                 img = cv.resize(card,(128,128))
                 img = np.asarray(img)/255
-                img = img.astype('float32')
-                object.append(img)
+                img = img.astype('float32')                object.append(img)
                 object = np.array(object)
                 object = object.astype('float32')
 
                 hs = self.model.predict(object,verbose = 0)
                 n = np.max(np.where(hs== hs.max()))
+                logger.info(f'Card detected: {self.classes[n]}')
+                center_x = x + w/2
+                center_y = y + h/2
+                bbx = BoundingBox()
+                bbx.label = self.get_label(n)
+                bbx.number = self.get_number(n)
+                bbx.bounding_box.center.position.x = center_x
+                bbx.bounding_box.center.position.y = center_y
+                bbx.bounding_box.size_x = w
+                bbx.bounding_box.size_y = h
+                bbx_to_send.bounding_boxes.append(bbx)                
                 self.draw_text(frame, f'{self.classes[n]} {"{:.2f}".format(hs[0,n])}', (x-95,y-11))
                 frame = self.show_fps(frame, 1 / (self.get_clock().now().to_msg().sec - start_time))
             try:
                 self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+                self.bbx_pub.publish(bbx_to_send)
             except CvBridgeError as e:
                 logger.error(e)
             cv.imshow('frame', frame)
