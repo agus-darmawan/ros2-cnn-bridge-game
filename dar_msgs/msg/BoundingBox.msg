@@ -3,6 +3,7 @@
 
 # This variable describes the class name associated with the detected object.
 string label
+string class_name
 uint8 number
 
 # Specifies a rectangular region enclosing a particular object within an image or frame.

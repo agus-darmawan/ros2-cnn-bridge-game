@@ -1,0 +1,14 @@
+from enum import Enum
+ 
+class GameState(Enum):
+    IDLE = 0
+    WAITING_FOR_COMPUTER_CARDS = 1
+    WAITING_FOR_USER_CARDS = 2
+    WAITING_FOR_OPENING_CARD = 3
+    USER_TURN = 4
+    COMPUTER_TURN = 5
+    GIVE_COMPUTER_CARD = 6
+    GIVE_USER_CARD = 7
+    CALCULATE_SCORE = 8
+    COMPUTER_WON = 9    
+    USER_WON = 10

@@ -188,6 +188,7 @@ class ObjectDetectionNode(Node):
                 bbx = BoundingBox()
                 bbx.label = self.get_label(n)
                 bbx.number = self.get_number(n)
+                bbx.class_name = self.classes[n]
                 bbx.bounding_box.center.position.x = center_x
                 bbx.bounding_box.center.position.y = center_y
                 bbx.bounding_box.size_x = w
