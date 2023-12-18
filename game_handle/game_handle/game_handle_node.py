@@ -6,9 +6,9 @@ import random
 # ------------------ ROS2 ------------------
 import rclpy
 from rclpy.node import Node
-from game_handle.utils.card_data import CardData
-from game_handle.utils.game_state import GameState
-from game_handle.utils.game_logic import GameLogic
+from utils.card_data import CardData
+from utils.game_state import GameState
+from utils.game_logic import GameLogic
 
 class GameHandleNode(Node):
     def __init__(self):
@@ -29,6 +29,7 @@ class GameHandleNode(Node):
         if self.state == GameState.IDLE:
             logger.info('STATE: IDLE')
             logger.info('Waiting for user to press start button')
+            self.state = GameState.WAITING_FOR_COMPUTER_CARDS
             # TODO: Wait for user to press start button
             pass
         else:
@@ -164,3 +165,13 @@ class GameHandleNode(Node):
                     self.state = GameState.IDLE
                 else:
                     self.state.USER_TURN
+
+def main(args=None):
+    rclpy.init(args=args)
+    game_handle_node = GameHandleNode()
+    rclpy.spin(game_handle_node)
+    game_handle_node.destroy_node()
+    rclpy.shutdown()
+    
+if __name__ == '__main__':
+    main()

@@ -5,7 +5,7 @@ import numpy as np
 import copy
 from loguru import logger
 from keras.models import load_model
-
+from utils.game_state import GameState
 
 # ------------------ ROS2 ------------------
 import rclpy
@@ -13,6 +13,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from dar_msgs.msg import BoundingBox, BoundingBoxArray
+from std_msgs.msg import Int8
 
 
 class ObjectDetectionNode(Node):
@@ -22,10 +23,12 @@ class ObjectDetectionNode(Node):
         logger.add(sys.stderr, format = "<red>[{level}]</red> <green>{message}</green> ", colorize=True)
         self.cap = cv.VideoCapture(0)
         self.image_pub = self.create_publisher(Image, 'camera/image_raw', 10)
+        self.state_sub = self.create_subscription(Int8, 'game/state', self.state_callback, 10)
         self.bbx_pub = self.create_publisher(BoundingBoxArray, 'vision/bounding_boxes', 10)
         self.timer = self.create_timer(0.1, self.timer_callback)
         self.bridge = CvBridge()
-        self.model = load_model('model.h5')
+        self.state  = GameState.IDLE
+        self.model = load_model('model/model_card.h5')
         self.started_time = self.get_clock().now().to_msg().sec
         self.classes = [
             "2 spades", "3 spades", "4 spades", "5 spades", "6 spades", "7 spades", "8 spades", "9 spades", "10 spades", "J spades", "Q spades", "K spades", "A spades",
@@ -34,25 +37,8 @@ class ObjectDetectionNode(Node):
             "2 diamonds", "3 diamonds", "4 diamonds", "5 diamonds", "6 diamonds", "7 diamonds", "8 diamonds", "9 diamonds", "10 diamonds", "J diamonds", "Q diamonds", "K diamonds", "A diamonds",
         ]
 
-    def masking_card(self,img):
-        '''
-        Parameters
-        ----------
-        img : np.ndarray
-            BGR image
-        Returns
-        -------
-        img : np.ndarray
-            HSV image
-        '''
-        img = cv.cvtColor(img, cv.COLOR_BGR2HSV)
-        lower = np.array([0, 0, 0])
-        upper = np.array([255, 255, 255])
-        mask  = cv.inRange(img, lower, upper)
-        mask  = cv.bitwise_and(img, img, mask=mask)
-        card =  cv.bitwise_xor(img, mask)
-        return cv.cvtColor(card, cv.COLOR_HSV2BGR)
-    
+    def state_callback(self, msg):
+        self.state = GameState(msg.data)
     def show_fps(self, img, fps):
         """
         Parameters
@@ -132,6 +118,7 @@ class ObjectDetectionNode(Node):
         -------
         number : str
             '''
+        print(n)
         if n < 13:
             return n
         elif n < 26:
@@ -140,43 +127,39 @@ class ObjectDetectionNode(Node):
             return n-26
         else:
             return n-39
+            
 
     def timer_callback(self):
         ret, frame = self.cap.read()
         if ret:
             logger.info('Frame readed')
-            start_time = self.get_clock().now().to_msg().sec
-            card = self.masking_card(frame)
-            card = cv.cvtColor(card, cv.COLOR_BGR2GRAY)
+            self.start_time = self.get_clock().now().to_msg().sec
+            card = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             treshold_image = cv.adaptiveThreshold(card,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,71,10)
 
             len_object,_, stats,_ = cv.connectedComponentsWithStats(treshold_image, 4, cv.CV_32S)
             is_card = []
             for i in range(len_object):
-                hw = stats[i][:2]
+                hw = stats[i,2:4]
                 if (100<hw[0]<300 and 300<hw[1]<500):
                     is_card.append(i)
-                    logger.info(f'Card detected with size {hw}')
-                    logger.info(f'Card length: {len(is_card)}')
             
-            for i in range(is_card):
+            for i in is_card:
                 x,y,w,h = stats[i][0],stats[i][1],stats[i][2],stats[i][3]
                 cv.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
                 cv.putText(frame, str(i), (x,y), cv.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2, cv.LINE_AA)
-                break
             bbx_to_send = BoundingBoxArray()
             bbx_to_send.header.stamp = self.get_clock().now().to_msg()
             bbx_to_send.header.frame_id = 'camera'
-            for i in range(is_card):
+            for i in is_card:
                 x,y,w,h = stats[i][0],stats[i][1],stats[i][2],stats[i][3]
                 card = frame[y:y+h, x:x+w]
                 cv.imshow('card', card)
-
-                card = cv.cvtColor(card, cv.COLOR_GRAY2BGR)
                 object = []
                 img = cv.resize(card,(128,128))
                 img = np.asarray(img)/255
-                img = img.astype('float32')                object.append(img)
+                img = img.astype('float32')                
+                object.append(img)
                 object = np.array(object)
                 object = object.astype('float32')
 
@@ -187,15 +170,22 @@ class ObjectDetectionNode(Node):
                 center_y = y + h/2
                 bbx = BoundingBox()
                 bbx.label = self.get_label(n)
-                bbx.number = self.get_number(n)
+                bbx.number = int(self.get_number(n))
                 bbx.class_name = self.classes[n]
                 bbx.bounding_box.center.position.x = center_x
                 bbx.bounding_box.center.position.y = center_y
-                bbx.bounding_box.size_x = w
-                bbx.bounding_box.size_y = h
+                bbx.bounding_box.size_x = float(w)
+                bbx.bounding_box.size_y = float(h)
                 bbx_to_send.bounding_boxes.append(bbx)                
                 self.draw_text(frame, f'{self.classes[n]} {"{:.2f}".format(hs[0,n])}', (x-95,y-11))
-                frame = self.show_fps(frame, 1 / (self.get_clock().now().to_msg().sec - start_time))
+            fps = 1 / (self.get_clock().now().to_msg().sec - self.started_time)
+            frame = self.show_fps(frame, fps)
+            if self.state == GameState.IDLE:
+                pass
+            else:
+                print('Game started')
+                # bagi 2
+                cv.line(frame, (0, 240), (640, 240), (0, 255, 0), 2)
             try:
                 self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
                 self.bbx_pub.publish(bbx_to_send)
