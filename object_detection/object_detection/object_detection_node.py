@@ -14,12 +14,16 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 from dar_msgs.msg import BoundingBox, BoundingBoxArray
 from std_msgs.msg import Int8
+import time
+from pynput.keyboard import Key, Controller
+
 
 
 class ObjectDetectionNode(Node):
     def __init__(self):
         super().__init__('object_detection_node')
         logger.remove(0)
+        self.keyboard = Controller()
         logger.add(sys.stderr, format = "<red>[{level}]</red> <green>{message}</green> ", colorize=True)
         self.cap = cv.VideoCapture(0)
         self.image_pub = self.create_publisher(Image, 'camera/image_raw', 10)
@@ -133,7 +137,7 @@ class ObjectDetectionNode(Node):
         ret, frame = self.cap.read()
         if ret:
             logger.info('Frame readed')
-            self.start_time = self.get_clock().now().to_msg().sec
+            self.start_time = time.time()
             card = cv.cvtColor(frame, cv.COLOR_BGR2GRAY)
             treshold_image = cv.adaptiveThreshold(card,255,cv.ADAPTIVE_THRESH_GAUSSIAN_C,cv.THRESH_BINARY,71,10)
 
@@ -147,7 +151,6 @@ class ObjectDetectionNode(Node):
             for i in is_card:
                 x,y,w,h = stats[i][0],stats[i][1],stats[i][2],stats[i][3]
                 cv.rectangle(frame, (x,y), (x+w,y+h), (0,255,0), 2)
-                cv.putText(frame, str(i), (x,y), cv.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2, cv.LINE_AA)
             bbx_to_send = BoundingBoxArray()
             bbx_to_send.header.stamp = self.get_clock().now().to_msg()
             bbx_to_send.header.frame_id = 'camera'
@@ -155,7 +158,7 @@ class ObjectDetectionNode(Node):
                 x,y,w,h = stats[i][0],stats[i][1],stats[i][2],stats[i][3]
                 card = frame[y:y+h, x:x+w]
                 cv.imshow('card', card)
-                object = []
+                object = []                                                                  
                 img = cv.resize(card,(128,128))
                 img = np.asarray(img)/255
                 img = img.astype('float32')                
@@ -164,21 +167,22 @@ class ObjectDetectionNode(Node):
                 object = object.astype('float32')
 
                 hs = self.model.predict(object,verbose = 0)
-                n = np.max(np.where(hs== hs.max()))
-                logger.info(f'Card detected: {self.classes[n]}')
-                center_x = x + w/2
-                center_y = y + h/2
-                bbx = BoundingBox()
-                bbx.label = self.get_label(n)
-                bbx.number = int(self.get_number(n))
-                bbx.class_name = self.classes[n]
-                bbx.bounding_box.center.position.x = center_x
-                bbx.bounding_box.center.position.y = center_y
-                bbx.bounding_box.size_x = float(w)
-                bbx.bounding_box.size_y = float(h)
-                bbx_to_send.bounding_boxes.append(bbx)                
+                n = np.max(np.wh         ere(hs== hs.max()))
+                logger.info(f'Card detected: {self.classes                                                                                                                                                                                                                                                                                                       [n]}')
+                center_x = x + w/2                                                    
+                center_y = y + h/2                                      
+                if self.keyboard.press(Key.space):
+                    bbx = BoundingBox()
+                    bbx.label = self.get_label(n)
+                    bbx.number = int(self.get_number(n))
+                    bbx.class_name = self.classes[n]
+                    bbx.bounding_box.center.position.x = center_x
+                    bbx.bounding_box.center.position.y = center_y         
+                    bbx.bounding_box.size_x = float(w)                                                               
+                    bbx.bounding_box.size_y = float(h)
+                    bbx_to_send.bounding_boxes.append(bbx)                
                 self.draw_text(frame, f'{self.classes[n]} {"{:.2f}".format(hs[0,n])}', (x-95,y-11))
-            fps = 1 / (self.get_clock().now().to_msg().sec - self.started_time)
+            fps = 1 / (time.time() - self.start_time)
             frame = self.show_fps(frame, fps)
             if self.state == GameState.IDLE:
                 pass

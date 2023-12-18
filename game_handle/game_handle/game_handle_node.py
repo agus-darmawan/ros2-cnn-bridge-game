@@ -29,57 +29,65 @@ class GameHandleNode(Node):
         if self.state == GameState.IDLE:
             logger.info('STATE: IDLE')
             logger.info('Waiting for user to press start button')
-            self.state = GameState.WAITING_FOR_COMPUTER_CARDS
+            self.state = random.choice([GameState.WAITING_FOR_COMPUTER_CARDS, GameState.WAITING_FOR_USER_CARDS])
             # TODO: Wait for user to press start button
             pass
         else:
             if self.state == GameState.WAITING_FOR_COMPUTER_CARDS:
                 logger.info('STATE: WAITING_FOR_COMPUTER_CARDS')
-                for i in self.card_data.card_class:                    
-                    if self.game_logic.is_new_card(i) and len(self.card_data.computer_cards_class) <= 5:
-                        self.card_data.all_cards_class.append(i.class_name)
-                        self.card_data.computer_cards_class.append(i.class_name)
-                        self.card_data.computer_cards_number.append(i.number)
-                        self.card_data.computer_cards_label.append(i.label)
-                        logger.info(f'Computer card: {i.label}')
-                    elif len(self.card_data.computer_cards_class) > 5:
-                        self.state = GameState.WAITING_FOR_USER_CARDS
+                for i in range (len(self.card_data.card_class)):
+                    if self.game_logic.is_new_card(self.card_data.all_cards_class,self.card_data.card_class[i]) and len(self.card_data.computer_cards_class) <= 2:
+                        self.card_data.all_cards_class.append(self.card_data.card_class[i])
+                        self.card_data.computer_cards_class.append(self.card_data.card_class[i])
+                        self.card_data.computer_cards_number.append(self.card_data.card_number[i])
+                        self.card_data.computer_cards_label.append(self.card_data.card_label[i])
+                        logger.info(f'Computer card: {self.card_data.card_class[i]}')
+                        logger.info(f'Computer cards: {self.card_data.computer_cards_class}')
+                    elif len(self.card_data.computer_cards_class) > 2:
+                        if(len(self.card_data.user_cards_class) > 2):
+                            self.state = GameState.WAITING_FOR_OPENING_CARD 
+                        else:
+                            self.state = GameState.WAITING_FOR_USER_CARDS
                         break
-                
             elif self.state == GameState.WAITING_FOR_USER_CARDS:
                 logger.info('STATE: WAITING_FOR_USER_CARDS')
-                for i in self.card_data.card_class:
-                    if self.game_logic.is_new_card(i) and len(self.card_data.user_cards_class) <= 5:
-                        self.card_data.all_cards_class.append(i.class_name)
-                        self.card_data.user_cards_class.append(i.class_name)
-                        self.card_data.user_cards_number.append(i.number)
-                        self.card_data.user_cards_label.append(i.label)
-                        logger.info(f'User card: {i.label}')
-                    elif len(self.card_data.user_cards_class) > 5:
-                        self.state = GameState.WAITING_FOR_OPENING_CARD
+                for i in range (len(self.card_data.card_class)):
+                    if self.game_logic.is_new_card(self.card_data.all_cards_class,self.card_data.card_class[i]) and len(self.card_data.user_cards_class) <= 2:
+                        self.card_data.all_cards_class.append(self.card_data.card_class[i])
+                        self.card_data.user_cards_class.append(self.card_data.card_class[i])
+                        self.card_data.user_cards_number.append(self.card_data.card_number[i])
+                        self.card_data.user_cards_label.append(self.card_data.card_label[i])
+                        logger.info(f'User card: {self.card_data.card_class[i]}')
+                        logger.info(f'User cards: {self.card_data.user_cards_class}')
+                    elif len(self.card_data.user_cards_class) > 2:
+                        if(len(self.card_data.computer_cards_class) > 2):
+                            self.state = GameState.WAITING_FOR_OPENING_CARD 
+                        else:
+                            self.state = GameState.WAITING_FOR_COMPUTER_CARDS
                         break
-
             elif self.state == GameState.WAITING_FOR_OPENING_CARD:
                 logger.info('STATE: WAITING_FOR_OPENING_CARD')
-                for i in self.card_data.card_class:
-                    if self.game_logic.is_new_card(i):
-                        self.card_data.all_cards_class.append(i.class_name)
-                        self.card_data.opening_card_class = i.class_name
-                        self.card_data.opening_card_number = i.number
-                        self.card_data.opening_card_label = i.label
-                        logger.info(f'Opening card: {i.label}')
+                for i in range (len(self.card_data.card_class)):
+                    if (self.game_logic.is_new_card(self.card_data.all_cards_class,self.card_data.card_class[i])):
+                        print("SELESAIIIII")
+                        self.card_data.all_cards_class.append(self.card_data.card_class[i])
+                        self.card_data.opening_card_class = self.card_data.card_class[i]
+                        self.card_data.opening_card_number = self.card_data.card_number[i]
+                        self.card_data.opening_card_label = self.card_data.card_label[i]
+                        logger.info(f'Opening card: {self.card_data.card_class[i]}')    
                         self.state = random.choice([GameState.COMPUTER_TURN, GameState.USER_TURN])
-                        break
-
             elif self.state == GameState.USER_TURN:
                 logger.info('STATE: USER_TURN')
-                if (self.xor(self.game_logic.is_same_label(self.card_data.user_cards_label, self.card_data.opening_card_label)),(self.game_logic.is_same_label(self.card_data.user_cards_label, self.card_data.computer_main_card_label))):
-                    self.card_data.computer_main_card_class = self.card_data.card_class
-                    self.card_data.computer_main_card_number = self.card_data.card_number
-                    self.card_data.computer_main_card_label = self.card_data.card_label
-                    self.card_data.user_cards_class.remove(self.card_data.card_class)
-                    self.card_data.user_cards_number.remove(self.card_data.card_number)
-                    self.card_data.user_cards_label.remove(self.card_data.card_label)
+                if (self.xor(
+                    (self.game_logic.is_same_label(self.card_data.user_cards_label, self.card_data.opening_card_label))
+                    ,(self.game_logic.is_same_label(self.card_data.user_cards_label, self.card_data.computer_main_card_label))
+                    )):
+                    self.card_data.user_main_card_class = self.card_data.card_class
+                    self.card_data.user_main_card_number = self.card_data.card_number
+                    self.card_data.user_main_card_label = self.card_data.card_label
+                    self.card_data.user_cards_class.remove(self.card_data.user_main_card_class)
+                    self.card_data.user_cards_number.remove(self.card_data.user_main_card_number)
+                    self.card_data.user_cards_label.remove(self.card_data.user_main_card_label)
                     if(len(self.card_data.computer_main_card_class) == 0):
                         self.state = GameState.COMPUTER_TURN
                     else:
@@ -89,16 +97,20 @@ class GameHandleNode(Node):
                         
             elif self.state == GameState.COMPUTER_TURN:
                 logger.info('STATE: COMPUTER_TURN')
-                if (self.xor(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.opening_card_label)),(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.user_main_card_label))):
+                if (self.xor(
+                    (self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.opening_card_label)),
+                    (self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.user_main_card_label))
+                    )):
                     same_label_num = 0
                     idx = 0
                     idxarr = []
-                    for i in self.card_data.computer_cards_label:
-                        if (self.xor(i == self.card_data.opening_card_label),(i == self.card_data.user_main_card_label)):
+                    for i in range  (len(self.card_data.computer_cards_label)):
+                        if (self.xor(
+                            (self.card_data.computer_cards_label[i] == self.card_data.opening_card_label),(self.card_data.computer_cards_label[i] == self.card_data.user_main_card_label)
+                            )):
                             same_label_num += 1
                             idx = i 
                             idxarr.append(i) 
-                    
                     if same_label_num == 1: 
                         self.card_data.computer_main_card_class = self.card_data.computer_cards_class[idx]
                         self.card_data.computer_main_card_number = self.card_data.computer_cards_number[idx]
@@ -122,8 +134,11 @@ class GameHandleNode(Node):
                     
             elif self.state == GameState.GIVE_COMPUTER_CARD:
                 logger.info('STATE: GIVE_COMPUTER_CARD')
-                if not (self.xor(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.opening_card_label)),(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.user_main_card_label))):
-                    if not self.game_logic.is_inside(self.card_data.card_class,self.card_data.all_cards_class):
+                if not (self.xor(
+                        (self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.opening_card_label))
+                        ,(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.user_main_card_label))
+                        )):
+                    if self.game_logic.is_new_card(self.card_data.all_cards_class,self.card_data.card_class):
                         self.card_data.all_cards_class.append(self.card_data.card_class)
                         self.card_data.computer_cards_class.append(self.card_data.card_class)
                         self.card_data.computer_cards_number.append(self.card_data.card_number)
@@ -135,7 +150,7 @@ class GameHandleNode(Node):
                 logger.info('STATE: GIVE_USER_CARD')
                 # do same as GIVE_COMPUTER_CARD
                 if not (self.xor(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.opening_card_label)),(self.game_logic.is_same_label(self.card_data.computer_cards_label, self.card_data.user_main_card_label))):
-                    if not self.game_logic.is_inside(self.card_data.card_class,self.card_data.all_cards_class):
+                    if self.game_logic.is_new_card(self.card_data.all_cards_class,self.card_data.card_class):
                         self.card_data.all_cards_class.append(self.card_data.card_class)
                         self.card_data.user_cards_class.append(self.card_data.card_class)
                         self.card_data.user_cards_number.append(self.card_data.card_number)
@@ -153,7 +168,7 @@ class GameHandleNode(Node):
             elif self.state == GameState.COMPUTER_WON:
                 logger.info('STATE: COMPUTER_WON')
                 if(len(self.card_data.computer_cards_class) == 0):
-                    logger.info('Computer WIN THE GAME')
+                    logger.info('COMPUTER WIN THE GAME')
                     self.state = GameState.IDLE
                 else:
                     self.state.COMPUTER_TURN
@@ -161,10 +176,12 @@ class GameHandleNode(Node):
             elif self.state == GameState.USER_WON:
                 logger.info('STATE: USER_WON')
                 if(len(self.card_data.user_cards_class) == 0):
-                    logger.info('User WIN THE GAME')
+                    logger.info('USER WIN THE GAME')
                     self.state = GameState.IDLE
                 else:
                     self.state.USER_TURN
+        logger.info(f'Computer cards: {self.card_data.computer_cards_class}')
+        logger.info(f'User cards: {self.card_data.user_cards_class}')        
 
 def main(args=None):
     rclpy.init(args=args)

@@ -10,8 +10,8 @@ class GameLogic():
         else:
             return True
 
-    def is_same_label(self):
-        pass
-
-    def is_inside(self):
-        pass
+    def is_same_label(self,card1,card2):
+        if card2 in card1:
+            return True
+        else:
+            return False

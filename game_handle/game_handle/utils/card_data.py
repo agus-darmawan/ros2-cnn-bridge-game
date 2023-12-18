@@ -36,7 +36,6 @@ class CardData():
         self.user_main_card_number : int = 0
         self.user_main_card_label : str = ''
     def bbx_callback(self, msg : BoundingBoxArray):
-        logger.info(f'delay: {self.node.get_clock().now().to_msg().sec - msg.header.stamp.sec}')
         for bbx in msg.bounding_boxes:
             self.card_label.append(bbx.label)
             self.card_number.append(bbx.number)
